@@ -27,7 +27,7 @@ impl EllipticCurve {
     }
 }
 
-struct FiniteField {}
+struct FiniteField;
 
 impl FiniteField {
     fn add(c: &BigUint, d: &BigUint, p: &BigUint) -> BigUint {
@@ -44,12 +44,15 @@ impl FiniteField {
 
     fn inverse_addition(c: &BigUint, p: &BigUint) -> BigUint {
         // -c mod p
-        assert!()
+        assert!(c < p, "number: {} is bigger or equal than: {}", c, p);
+        p - c
     }
 
     fn inverse_multiplication(c: &BigUint, p: &BigUint) -> BigUint {
-        // c^(-1) mod p
-        todo!()
+        // TODO: this function uses Fermat's Little Theorem and thus is only valid for primes(p)
+        // only for p as a prime
+        // c^(-1) mod p = c^(p-2) mod p
+        c.modpow(&(p - BigUint::from(2u32)), p)
     }
 }
 
@@ -99,5 +102,46 @@ mod test {
         let r = FiniteField::multiplication(&c, &d, &p);
 
         assert_eq!(r, BigUint::from(40u32));
+    }
+
+    #[test]
+    fn test_inverse_addition_one() {
+        let c = BigUint::from(4u32);
+        let p = BigUint::from(31u32);
+
+        let r = FiniteField::inverse_addition(&c, &p);
+
+        assert_eq!(r, BigUint::from(27u32));
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_inverse_addition_two() {
+        let c = BigUint::from(32u32);
+        let p = BigUint::from(31u32);
+
+        FiniteField::inverse_addition(&c, &p);
+    }
+
+    #[test]
+    fn test_inverse_addition_identity() {
+        let c = BigUint::from(4u32);
+        let p = BigUint::from(31u32);
+
+        let c_inverse = FiniteField::inverse_addition(&c, &p);
+        let r = FiniteField::add(&c, &c_inverse, &p);
+
+        assert_eq!(r, BigUint::from(0u32));
+    }
+
+    #[test]
+    fn test_inverse_multiplication_identity() {
+        let c = BigUint::from(4u32);
+        let p = BigUint::from(17u32);
+
+        let c_inverse = FiniteField::inverse_multiplication(&c, &p);
+        let r = FiniteField::multiplication(&c, &c_inverse, &p);
+
+        assert_eq!(r, BigUint::from(1u32));
     }
 }

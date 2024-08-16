@@ -26,7 +26,7 @@ impl EllipticCurve {
             (Point::Coordinate(x, y), Point::Identity) => Point::Coordinate(x.clone(), y.clone()),
             (Point::Coordinate(x1, y1), Point::Coordinate(x2, y2)) => {
                 if FiniteField::add(y1, y2, &self.p) == BigUint::from(0u32) && x1 == x2 {
-                    return Point::Identity
+                    return Point::Identity;
                 }
                 // s = (y2 - y1) / (x2 - x1) mod p
                 // x3 = s^2 - x1 - x2 mod p
@@ -43,19 +43,22 @@ impl EllipticCurve {
     pub fn double(&self, c: &Point) -> Point {
         assert!(self.is_on_curve(c), "{:?} is not on curve", c);
 
-        if let Point::Coordinate(x1, y1) = c {
-            // s = (3 * x1^2 + a) / (2 * y1) mod p
-            // x3 = s^2 - 2 * x1 mod p
-            // y3 = s(x1 - x3) - y1 mod p
-            let x1_squared = x1.modpow(&BigUint::from(2u32), &self.p);
+        if let Point::Coordinate(x, y) = c {
+            // s = (3 * x^2 + a) / (2 * y) mod p
+            // x0 = s^2 - 2 * x mod p
+            // y0 = s(x - x0) - y mod p
+            if *y == BigUint::from(0u32) {
+                return Point::Identity
+            }
+            let x_squared = x.modpow(&BigUint::from(2u32), &self.p);
             let numerator = FiniteField::add(
-                &FiniteField::multiplication(&BigUint::from(3u32), &x1_squared, &self.p),
+                &FiniteField::multiplication(&BigUint::from(3u32), &x_squared, &self.p),
                 &self.a,
-                &self.p
+                &self.p,
             );
-            let denominator = FiniteField::multiplication(&BigUint::from(2u32), y1, &self.p);
+            let denominator = FiniteField::multiplication(&BigUint::from(2u32), y, &self.p);
             let s = FiniteField::divide(&numerator, &denominator, &self.p);
-            self.compute_third_point(x1, y1, x1, &s)
+            self.compute_third_point(x, y, x, &s)
         } else {
             Point::Identity
         }
@@ -119,17 +122,21 @@ pub struct FiniteField;
 
 impl FiniteField {
     fn add(c: &BigUint, d: &BigUint, p: &BigUint) -> BigUint {
+        // c + d = r mod p
+
         assert!(c < p, "{c} >= {p}");
         assert!(d < p, "{d} >= {p}");
-        // c + d = r mod p
+
         let r = c + d;
         r.modpow(&BigUint::from(1u32), p)
     }
 
     fn multiplication(c: &BigUint, d: &BigUint, p: &BigUint) -> BigUint {
         // c * d = r mod p
+
         assert!(c < p, "{c} >= {p}");
         assert!(d < p, "{d} >= {p}");
+
         let r = c * d;
         r.modpow(&BigUint::from(1u32), p)
     }
@@ -144,6 +151,7 @@ impl FiniteField {
 
     fn subtract(c: &BigUint, d: &BigUint, p: &BigUint) -> BigUint {
         // c - d mod p
+
         assert!(c < p, "{c} >= {p}");
         assert!(d < p, "{d} >= {p}");
 
@@ -377,5 +385,51 @@ mod test {
         let a = BigUint::from(2u32);
         assert!(!a.bit(0));
         assert!(a.bit(1));
+    }
+
+    #[test]
+    fn test_ec_secp256k1() {
+        /*
+            y^2 = x^3 + 7 mod p (large)
+
+            p = FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFE FFFFFC2F
+            n = FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFE BAAEDCE6 AF48A03B BFD25E8C D0364141
+            G = (
+                x = 79BE667E F9DCBBAC 55A06295 CE870B07 029BFCDB 2DCE28D9 59F2815B 16F81798,
+                y = 483ADA77 26A3C465 5DA4FBFC 0E1108A8 FD17B448 A6855419 9C47D08F FB10D4B8
+            )
+            a = 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+            b = 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000007
+        */
+
+        // n * G = Point::Identity
+        let p = BigUint::parse_bytes(
+            b"FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F",
+            16
+        ).expect("Could not convert p");
+        let n = BigUint::parse_bytes(
+            b"FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141",
+            16
+        ).expect("Could not convert n");
+        let gx = BigUint::parse_bytes(
+            b"79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798",
+            16
+        ).expect("Could not convert gx");
+        let gy = BigUint::parse_bytes(
+            b"483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8",
+            16
+        ).expect("Could not convert gy");
+
+        let ec = EllipticCurve::new(
+            BigUint::from(0u32),
+            BigUint::from(7u32),
+            p,
+        );
+
+        let g = Point::Coordinate(gx, gy);
+
+        let result = ec.scalar_multiplication(&g, &n);
+
+        assert_eq!(result, Point::Identity);
     }
 }

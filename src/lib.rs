@@ -31,29 +31,31 @@ impl EllipticCurve {
                 let delta_y = FiniteField::subtract(y2, y1, &self.p);
                 let delta_x = FiniteField::subtract(x2, x1, &self.p);
                 let s = FiniteField::divide(&delta_y, &delta_x, &self.p);
-                let s_square = s.modpow(&BigUint::from(2u32), &self.p);
-                let x3 = FiniteField::subtract(
-                    &FiniteField::subtract(&s_square, x1, &self.p),
-                    &x2,
-                    &self.p,
-                );
-                let y3 = FiniteField::subtract(
-                    &FiniteField::multiplication(
-                        &s,
-                        &FiniteField::subtract(x1, &x3, &self.p),
-                        &self.p,
-                    ),
-                    y1,
-                    &self.p,
-                );
-                Point::Coordinate(x3, y3)
+                self.compute_third_point(x1, y1, x2, &s)
             }
             _ => Point::Identity,
         }
     }
 
-    fn double(c: &Point) -> Point {
-        todo!()
+    fn double(&self, c: &Point) -> Point {
+        assert!(self.is_on_curve(c), "{:?} is not on curve", c);
+
+        if let Point::Coordinate(x1, y1) = c {
+            // s = (3 * x1^2 + a) / (2 * y1) mod p
+            // x3 = s^2 - 2 * x1 mod p
+            // y3 = s(x1 - x3) - y1 mod p
+            let x1_squared = x1.modpow(&BigUint::from(2u32), &self.p);
+            let numerator = FiniteField::add(
+                &FiniteField::multiplication(&BigUint::from(3u32), &x1_squared, &self.p),
+                &self.a,
+                &self.p
+            );
+            let denominator = FiniteField::multiplication(&BigUint::from(2u32), y1, &self.p);
+            let s = FiniteField::divide(&numerator, &denominator, &self.p);
+            self.compute_third_point(x1, y1, x1, &s)
+        } else {
+            Point::Identity
+        }
     }
 
     fn scalar_multiplication(c: &Point, d: &BigUint) -> Point {
@@ -73,6 +75,25 @@ impl EllipticCurve {
         } else {
             true
         }
+    }
+
+    fn compute_third_point(&self, x1: &BigUint, y1: &BigUint, x2: &BigUint, s: &BigUint) -> Point {
+        let s_square = s.modpow(&BigUint::from(2u32), &self.p);
+        let x3 = FiniteField::subtract(
+            &FiniteField::subtract(&s_square, x1, &self.p),
+            &x2,
+            &self.p,
+        );
+        let y3 = FiniteField::subtract(
+            &FiniteField::multiplication(
+                &s,
+                &FiniteField::subtract(x1, &x3, &self.p),
+                &self.p,
+            ),
+            y1,
+            &self.p,
+        );
+        Point::Coordinate(x3, y3)
     }
 }
 
@@ -236,5 +257,38 @@ mod test {
 
         let result = ec.add(&p1, &p2);
         assert_eq!(result, p3);
+    }
+
+    #[test]
+    fn test_ec_point_doubling() {
+        // y^2 = x^3 + 2x + 2 mod 17
+        let ec = EllipticCurve::new(
+            BigUint::from(2u32),
+            BigUint::from(2u32),
+            BigUint::from(17u32),
+        );
+
+        // (5, 1) + (5, 1) = 2 * (5, 1) = (6, 3)
+        let p1 = Point::Coordinate(BigUint::from(5u32), BigUint::from(1u32));
+        let pr = Point::Coordinate(BigUint::from(6u32), BigUint::from(3u32));
+        let result = ec.double(&p1);
+        assert_eq!(result, pr);
+    }
+
+    #[test]
+    fn test_ec_point_doubling_identity() {
+        // y^2 = x^3 + 2x + 2 mod 17
+        let ec = EllipticCurve::new(
+            BigUint::from(2u32),
+            BigUint::from(2u32),
+            BigUint::from(17u32),
+        );
+
+        // Point::Identity + Point::Identity = 2 * Point::Identity = Point::Identity
+        let p1 = Point::Identity;
+        let pr = Point::Identity;
+
+        let result = ec.double(&p1);
+        assert_eq!(result, pr);
     }
 }

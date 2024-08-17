@@ -23,12 +23,13 @@ impl ECDSA {
     }
 
     pub fn generate_public_key(&self, private_key: &BigUint) -> Point {
-        todo!();
+        self.elliptic_curve.scalar_multiplication(&self.a_generator, private_key)
     }
 
     // (0, max)
     pub fn generate_random_positive_number_less_than(&self, max: &BigUint) -> BigUint {
-        todo!();
+        let mut rng = rand::thread_rng();
+        rng.gen_biguint_range(&BigUint::from(1u32), max)
     }
 
     pub fn sign(

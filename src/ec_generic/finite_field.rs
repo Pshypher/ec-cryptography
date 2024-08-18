@@ -28,7 +28,7 @@ impl FiniteField {
 
         assert!(c < p, "number: {} is bigger or equal than: {}", c, p);
 
-        p - c
+        (p - c).modpow(&BigUint::from(1u32), p)
     }
 
     pub fn subtract(c: &BigUint, d: &BigUint, p: &BigUint) -> BigUint {
@@ -45,7 +45,7 @@ impl FiniteField {
 
     // TODO: this function uses Fermat's Little Theorem and thus is only valid for primes(p)
     // only for p as a prime
-    fn inverse_multiplication(c: &BigUint, p: &BigUint) -> BigUint {
+    pub fn inverse_multiplication(c: &BigUint, p: &BigUint) -> BigUint {
         // c^(-1) mod p = c^(p-2) mod p
 
         assert!(c < p, "{c} >= {p}");

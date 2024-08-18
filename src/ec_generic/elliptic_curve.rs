@@ -1,5 +1,5 @@
 use num_bigint::BigUint;
-use crate::finite_field::FiniteField;
+use crate::ec_generic::finite_field::FiniteField;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Point {

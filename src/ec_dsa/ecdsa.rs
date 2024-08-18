@@ -2,7 +2,7 @@ use crate::ec_generic::elliptic_curve::{EllipticCurve, Point};
 use crate::ec_generic::finite_field::FiniteField;
 use num_bigint::{BigUint, RandBigInt};
 use rand::{self, Rng};
-use sha256::{digest, try_digest};
+use sha256::digest;
 
 struct ECDSA {
     elliptic_curve: EllipticCurve,
@@ -76,8 +76,32 @@ impl ECDSA {
         }
     }
 
+    ///
+    /// u1 = s^(-1) * hash(message) mod q
+    /// u2 = s^(-1) * hash(message) mod q
+    /// P = u1 * A + u2 * B mod q = (xp, yp)
+    /// if r == xp then verified!
+    ///
     pub fn verify(&self, hash: &BigUint, public_key: &Point, signature: &(BigUint, BigUint)) -> bool {
-        todo!()
+        assert!(
+            *hash < self.q_order,
+            "Hash is bigger than the order of the EC group"
+        );
+
+        let (r, s) = signature;
+        let s_inverse = FiniteField::inverse_multiplication(&s, &self.q_order);
+        let u1 = FiniteField::multiplication(&s_inverse, hash, &self.q_order);
+        let u2 = FiniteField::multiplication(&s_inverse, r, &self.q_order);
+        let p = self.elliptic_curve.add(
+            &self.elliptic_curve.scalar_multiplication(&self.a_generator, &u1),
+            &self.elliptic_curve.scalar_multiplication(public_key, &u2)
+        );
+
+        if let Point::Coordinate(xp, _) = p {
+            xp == *r
+        } else {
+            panic!("Point P = u1 * A + u2 * B cannot be the identity.")
+        }
     }
 
     /// 0 < hash < max
@@ -116,6 +140,66 @@ mod test {
         let hash= ECDSA::generate_hash_less_than(message, &ecdsa.q_order);
 
         let signature = ecdsa.sign(&hash, &private_key, &k_random);
-        println!("{:?}", signature)
+
+        let result = ecdsa.verify(&hash, &public_key, &signature);
+        assert!(result, "Verification should succeed");
+    }
+
+    #[test]
+    fn test_sign_verify_tampered_message() {
+        let elliptic_curve = EllipticCurve::new(
+            BigUint::from(2u32),
+            BigUint::from(2u32),
+            BigUint::from(17u32),
+        );
+
+        let a_generator = Point::Coordinate(BigUint::from(5u32), BigUint::from(1u32));
+        let q_order = BigUint::from(19u32);
+        let ecdsa = ECDSA::new(elliptic_curve, a_generator, q_order);
+
+        let private_key = BigUint::from(7u32);
+        let public_key = ecdsa.generate_public_key(&private_key);
+
+        let hash = BigUint::from(10u32);
+        let k_random = BigUint::from(18u32);
+
+        let message = "Bob -> 1 SOL -> Alice";
+        let hash= ECDSA::generate_hash_less_than(message, &ecdsa.q_order);
+
+        let signature = ecdsa.sign(&hash, &private_key, &k_random);
+
+        let message = "Bob -> 1 ETH -> Alice";
+        let hash= ECDSA::generate_hash_less_than(message, &ecdsa.q_order);
+
+        let result = ecdsa.verify(&hash, &public_key, &signature);
+        assert!(!result, "Verification should fail when message is tampered with");
+    }
+
+    #[test]
+    fn test_sign_verify_tampered_signature() {
+        let elliptic_curve = EllipticCurve::new(
+            BigUint::from(2u32),
+            BigUint::from(2u32),
+            BigUint::from(17u32),
+        );
+
+        let a_generator = Point::Coordinate(BigUint::from(5u32), BigUint::from(1u32));
+        let q_order = BigUint::from(19u32);
+        let ecdsa = ECDSA::new(elliptic_curve, a_generator, q_order);
+
+        let private_key = BigUint::from(7u32);
+        let public_key = ecdsa.generate_public_key(&private_key);
+
+        let hash = BigUint::from(10u32);
+        let k_random = BigUint::from(13u32);
+
+        let message = "Bob -> 1 BTC -> Alice";
+        let hash= ECDSA::generate_hash_less_than(message, &ecdsa.q_order);
+
+        let (r, s) = ecdsa.sign(&hash, &private_key, &k_random);
+        let tampered_signature = (FiniteField::add(&r, &BigUint::from(1u32), &ecdsa.q_order), s);
+
+        let result = ecdsa.verify(&hash, &public_key, &tampered_signature);
+        assert!(!result, "Verification should fail when signature is tampered with");
     }
 }

@@ -134,7 +134,7 @@ mod test {
         let public_key = ecdsa.generate_public_key(&private_key);
 
         let hash = BigUint::from(10u32);
-        let k_random = BigUint::from(18u32);
+        let k_random = BigUint::from(13u32);
 
         let message = "Bob -> 1 SOL -> Alice";
         let hash= ECDSA::generate_hash_less_than(message, &ecdsa.q_order);
@@ -161,7 +161,7 @@ mod test {
         let public_key = ecdsa.generate_public_key(&private_key);
 
         let hash = BigUint::from(10u32);
-        let k_random = BigUint::from(18u32);
+        let k_random = BigUint::from(17u32);
 
         let message = "Bob -> 1 SOL -> Alice";
         let hash= ECDSA::generate_hash_less_than(message, &ecdsa.q_order);
@@ -201,5 +201,158 @@ mod test {
 
         let result = ecdsa.verify(&hash, &public_key, &tampered_signature);
         assert!(!result, "Verification should fail when signature is tampered with");
+    }
+
+    #[test]
+    fn test_secp256_sign_verify() {
+
+        let p = BigUint::parse_bytes(
+            b"FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F",
+            16
+        ).expect("Could not convert p");
+        let q_order = BigUint::parse_bytes(
+            b"FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141",
+            16
+        ).expect("Could not convert n");
+        let gx = BigUint::parse_bytes(
+            b"79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798",
+            16
+        ).expect("Could not convert gx");
+        let gy = BigUint::parse_bytes(
+            b"483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8",
+            16
+        ).expect("Could not convert gy");
+
+        let elliptic_curve = EllipticCurve::new(
+            BigUint::from(0u32),
+            BigUint::from(7u32),
+            p,
+        );
+
+        let a_generator = Point::Coordinate(gx, gy);
+
+        let ecdsa = ECDSA::new(elliptic_curve, a_generator, q_order);
+
+        let private_key = BigUint::parse_bytes(
+            b"483ADB7726A3C4655DA4FBFC0E1208A8F017B448A68554199C47D08FFB10E4B9", 16
+        ).expect("Could not convert hex to private key");
+
+        let public_key = ecdsa.generate_public_key(&private_key);
+
+        let k_random = BigUint::parse_bytes(
+            b"19BE666EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B15E81798", 16
+        ).expect("Could not convert hex to random key");
+
+        let message = "Bob -> 1 SOL -> Alice";
+        let hash = ECDSA::generate_hash_less_than(message, &ecdsa.q_order);
+
+        let signature = ecdsa.sign(&hash, &private_key, &k_random);
+
+        let result = ecdsa.verify(&hash, &public_key, &signature);
+        assert!(result, "Verification should have succeeded");
+    }
+
+    #[test]
+    fn test_secp256_sign_verify_tampered_message() {
+
+        let p = BigUint::parse_bytes(
+            b"FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F",
+            16
+        ).expect("Could not convert p");
+        let q_order = BigUint::parse_bytes(
+            b"FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141",
+            16
+        ).expect("Could not convert n");
+        let gx = BigUint::parse_bytes(
+            b"79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798",
+            16
+        ).expect("Could not convert gx");
+        let gy = BigUint::parse_bytes(
+            b"483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8",
+            16
+        ).expect("Could not convert gy");
+
+        let elliptic_curve = EllipticCurve::new(
+            BigUint::from(0u32),
+            BigUint::from(7u32),
+            p,
+        );
+
+        let a_generator = Point::Coordinate(gx, gy);
+
+        let ecdsa = ECDSA::new(elliptic_curve, a_generator, q_order);
+
+        let private_key = BigUint::parse_bytes(
+            b"483ADB7726A3C4655DA4FBFC0E1208A8F017B448A68554199C47D08FFB10E4B9", 16
+        ).expect("Could not convert hex to private key");
+
+        let public_key = ecdsa.generate_public_key(&private_key);
+
+        let k_random = BigUint::parse_bytes(
+            b"19BE666EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B15E81798", 16
+        ).expect("Could not convert hex to random key");
+
+        let message = "Bob -> 1 SOL -> Alice";
+        let hash = ECDSA::generate_hash_less_than(message, &ecdsa.q_order);
+
+        let signature = ecdsa.sign(&hash, &private_key, &k_random);
+
+        let message = "Bob -> 1 BNB -> Alice";
+        let hash = ECDSA::generate_hash_less_than(message, &ecdsa.q_order);
+
+        let result = ecdsa.verify(&hash, &public_key, &signature);
+        assert!(!result, "Verification should have failed due to tampered message");
+    }
+
+    #[test]
+    fn test_secp256_sign_verify_tampered_signature() {
+
+        let p = BigUint::parse_bytes(
+            b"FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F",
+            16
+        ).expect("Could not convert p");
+        let q_order = BigUint::parse_bytes(
+            b"FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141",
+            16
+        ).expect("Could not convert n");
+        let gx = BigUint::parse_bytes(
+            b"79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798",
+            16
+        ).expect("Could not convert gx");
+        let gy = BigUint::parse_bytes(
+            b"483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8",
+            16
+        ).expect("Could not convert gy");
+
+        let elliptic_curve = EllipticCurve::new(
+            BigUint::from(0u32),
+            BigUint::from(7u32),
+            p,
+        );
+
+        let a_generator = Point::Coordinate(gx, gy);
+
+        let ecdsa = ECDSA::new(elliptic_curve, a_generator, q_order);
+
+        let private_key = BigUint::parse_bytes(
+            b"483ADB7726A3C4655DA4FBFC0E1208A8F017B448A68554199C47D08FFB10E4B9", 16
+        ).expect("Could not convert hex to private key");
+
+        let public_key = ecdsa.generate_public_key(&private_key);
+
+        let k_random = BigUint::parse_bytes(
+            b"19BE666EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B15E81798", 16
+        ).expect("Could not convert hex to random key");
+
+        let message = "Bob -> 1 SOL -> Alice";
+        let hash = ECDSA::generate_hash_less_than(message, &ecdsa.q_order);
+
+        let signature = ecdsa.sign(&hash, &private_key, &k_random);
+
+        let (r, s) = ecdsa.sign(&hash, &private_key, &k_random);
+        let tampered_signature = (FiniteField::add(&r, &BigUint::from(1u32), &ecdsa.q_order), s);
+
+        let result = ecdsa.verify(&hash, &public_key, &tampered_signature);
+        assert!(!result, "Verification should have failed due to tampered signature");
     }
 }
